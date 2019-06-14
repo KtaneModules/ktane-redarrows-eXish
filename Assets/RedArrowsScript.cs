@@ -4,6 +4,7 @@ using System.Linq;
 using UnityEngine;
 using KModkit;
 using System;
+using System.Text.RegularExpressions;
 
 public class RedArrowsScript : MonoBehaviour {
 
@@ -70,24 +71,28 @@ public class RedArrowsScript : MonoBehaviour {
             {
                 GetComponent<KMBombModule>().HandleStrike();
                 Debug.LogFormat("[Red Arrows #{0}] A barrier was hit! Module Resetting!", moduleId);
+                firstMove = false;
                 Start();
             }
             else if (pressed == buttons[1] && nextPlaceUnsafe("DOWN"))
             {
                 GetComponent<KMBombModule>().HandleStrike();
                 Debug.LogFormat("[Red Arrows #{0}] A barrier was hit! Module Resetting!", moduleId);
+                firstMove = false;
                 Start();
             }
             else if (pressed == buttons[2] && nextPlaceUnsafe("LEFT"))
             {
                 GetComponent<KMBombModule>().HandleStrike();
                 Debug.LogFormat("[Red Arrows #{0}] A barrier was hit! Module Resetting!", moduleId);
+                firstMove = false;
                 Start();
             }
             else if (pressed == buttons[3] && nextPlaceUnsafe("RIGHT"))
             {
                 GetComponent<KMBombModule>().HandleStrike();
                 Debug.LogFormat("[Red Arrows #{0}] A barrier was hit! Module Resetting!", moduleId);
+                firstMove = false;
                 Start();
             }
             else
@@ -217,41 +222,34 @@ public class RedArrowsScript : MonoBehaviour {
 
     IEnumerator ProcessTwitchCommand(string command)
     {
-        string[] parameters = command.Split(' ');
-        foreach (string param in parameters)
+        if (Regex.IsMatch(command, @"^\s*reset\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
         {
             yield return null;
-            if (param.EqualsIgnoreCase("up") || param.EqualsIgnoreCase("u"))
-            {
-                buttons[0].OnInteract();
-                yield return new WaitForSeconds(0.1f);
-            }
-            else if (param.EqualsIgnoreCase("down") || param.EqualsIgnoreCase("d"))
-            {
-                buttons[1].OnInteract();
-                yield return new WaitForSeconds(0.1f);
-            }
-            else if (param.EqualsIgnoreCase("left") || param.EqualsIgnoreCase("l"))
-            {
-                buttons[2].OnInteract();
-                yield return new WaitForSeconds(0.1f);
-            }
-            else if (param.EqualsIgnoreCase("right") || param.EqualsIgnoreCase("r"))
-            {
-                buttons[3].OnInteract();
-                yield return new WaitForSeconds(0.1f);
-            }
-            else if (param.EqualsIgnoreCase("reset"))
-            {
-                current = maze.IndexOf(""+start);
-                yield return new WaitForSeconds(0.5f);
-                numDisplay.GetComponent<TextMesh>().text = "" + start;
-                firstMove = false;
-            }
-            else
-            {
-                break;
-            }
+            numDisplay.GetComponent<TextMesh>().text = " ";
+            yield return new WaitForSeconds(0.5f);
+            current = maze.IndexOf("" + start);
+            numDisplay.GetComponent<TextMesh>().text = "" + start;
+            Debug.LogFormat("[Red Arrows #{0}] Module Reset back to starting position!", moduleId);
+            yield break;
         }
+
+        string[] parameters = command.Split(' ');
+        var buttonsToPress = new List<KMSelectable>();
+        foreach (string param in parameters)
+        {
+            if (param.EqualsIgnoreCase("up") || param.EqualsIgnoreCase("u"))
+                buttonsToPress.Add(buttons[0]);
+            else if (param.EqualsIgnoreCase("down") || param.EqualsIgnoreCase("d"))
+                buttonsToPress.Add(buttons[1]);
+            else if (param.EqualsIgnoreCase("left") || param.EqualsIgnoreCase("l"))
+                buttonsToPress.Add(buttons[2]);
+            else if (param.EqualsIgnoreCase("right") || param.EqualsIgnoreCase("r"))
+                buttonsToPress.Add(buttons[3]);
+            else
+                yield break;
+        }
+
+        yield return null;
+        yield return buttonsToPress;
     }
 }
