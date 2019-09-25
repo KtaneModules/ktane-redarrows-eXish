@@ -222,7 +222,7 @@ public class RedArrowsScript : MonoBehaviour
 
     private IEnumerator victory()
     {
-        yield return null;
+        isanimating = true;
         for (int i = 0; i < 100; i++)
         {
             int rand1 = UnityEngine.Random.RandomRange(0, 10);
@@ -237,9 +237,10 @@ public class RedArrowsScript : MonoBehaviour
             yield return new WaitForSeconds(0.025f);
         }
         numDisplay.GetComponent<TextMesh>().text = "GG";
-        StopCoroutine("victory");
-        GetComponent<KMBombModule>().HandlePass();
+        isanimating = false;
         moduleSolved = true;
+        GetComponent<KMBombModule>().HandlePass();
+        StopCoroutine("victory");
     }
 
     //twitch plays
