@@ -123,6 +123,7 @@ public class RedArrowsScript : MonoBehaviour
                 }
                 if (("" + maze[current]).Equals(finish + ""))
                 {
+                    moduleSolved = true;
                     StartCoroutine(victory());
                     Debug.LogFormat("[Red Arrows #{0}] Successfully reached the end of the maze! Module Disarmed!", moduleId);
                 }
@@ -238,7 +239,6 @@ public class RedArrowsScript : MonoBehaviour
         }
         numDisplay.GetComponent<TextMesh>().text = "GG";
         isanimating = false;
-        moduleSolved = true;
         GetComponent<KMBombModule>().HandlePass();
         StopCoroutine("victory");
     }
@@ -285,5 +285,6 @@ public class RedArrowsScript : MonoBehaviour
 
         yield return null;
         yield return buttonsToPress;
+        if (moduleSolved) { yield return "solve"; }
     }
 }
