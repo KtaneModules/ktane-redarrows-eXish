@@ -75,28 +75,28 @@ public class RedArrowsScript : MonoBehaviour
         {
             pressed.AddInteractionPunch(0.25f);
             audio.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.ButtonPress, transform);
-            if (pressed == buttons[0] && nextPlaceUnsafe("UP"))
+            if (pressed == buttons[0] && nextPlaceUnsafe("UP", current))
             {
                 GetComponent<KMBombModule>().HandleStrike();
                 Debug.LogFormat("[Red Arrows #{0}] A barrier was hit! Module Resetting!", moduleId);
                 firstMove = false;
                 Start();
             }
-            else if (pressed == buttons[1] && nextPlaceUnsafe("DOWN"))
+            else if (pressed == buttons[1] && nextPlaceUnsafe("DOWN", current))
             {
                 GetComponent<KMBombModule>().HandleStrike();
                 Debug.LogFormat("[Red Arrows #{0}] A barrier was hit! Module Resetting!", moduleId);
                 firstMove = false;
                 Start();
             }
-            else if (pressed == buttons[2] && nextPlaceUnsafe("LEFT"))
+            else if (pressed == buttons[2] && nextPlaceUnsafe("LEFT", current))
             {
                 GetComponent<KMBombModule>().HandleStrike();
                 Debug.LogFormat("[Red Arrows #{0}] A barrier was hit! Module Resetting!", moduleId);
                 firstMove = false;
                 Start();
             }
-            else if (pressed == buttons[3] && nextPlaceUnsafe("RIGHT"))
+            else if (pressed == buttons[3] && nextPlaceUnsafe("RIGHT", current))
             {
                 GetComponent<KMBombModule>().HandleStrike();
                 Debug.LogFormat("[Red Arrows #{0}] A barrier was hit! Module Resetting!", moduleId);
@@ -168,11 +168,11 @@ public class RedArrowsScript : MonoBehaviour
         }
     }
 
-    private bool nextPlaceUnsafe(string check)
+    private bool nextPlaceUnsafe(string check, int pos)
     {
         if (check.Equals("UP"))
         {
-            char imp = maze[current - 21];
+            char imp = maze[pos - 21];
             if (imp.Equals('-') || imp.Equals('|'))
             {
                 return true;
@@ -184,7 +184,7 @@ public class RedArrowsScript : MonoBehaviour
         }
         else if (check.Equals("DOWN"))
         {
-            char imp = maze[current + 21];
+            char imp = maze[pos + 21];
             if (imp.Equals('-') || imp.Equals('|'))
             {
                 return true;
@@ -196,7 +196,7 @@ public class RedArrowsScript : MonoBehaviour
         }
         else if (check.Equals("LEFT"))
         {
-            char imp = maze[current - 1];
+            char imp = maze[pos - 1];
             if (imp.Equals('-') || imp.Equals('|'))
             {
                 return true;
@@ -208,7 +208,7 @@ public class RedArrowsScript : MonoBehaviour
         }
         else if (check.Equals("RIGHT"))
         {
-            char imp = maze[current + 1];
+            char imp = maze[pos + 1];
             if (imp.Equals('-') || imp.Equals('|'))
             {
                 return true;
@@ -286,5 +286,60 @@ public class RedArrowsScript : MonoBehaviour
         yield return null;
         yield return buttonsToPress;
         if (moduleSolved) { yield return "solve"; }
+    }
+
+    struct QueueItem
+    {
+        public int Cell;
+        public int Parent;
+        public int Direction;
+        public QueueItem(int cell, int parent, int dir)
+        {
+            Cell = cell;
+            Parent = parent;
+            Direction = dir;
+        }
+    }
+
+    private IEnumerator TwitchHandleForcedSolve()
+    {
+        var visited = new Dictionary<int, QueueItem>();
+        var q = new Queue<QueueItem>();
+        var sol = maze.IndexOf(finish.ToString()[0]);
+        q.Enqueue(new QueueItem(current, -1, 0));
+        while (q.Count > 0)
+        {
+            var qi = q.Dequeue();
+            if (visited.ContainsKey(qi.Cell))
+                continue;
+            visited[qi.Cell] = qi;
+            if (qi.Cell == sol)
+                break;
+            if (!nextPlaceUnsafe("UP", qi.Cell))
+                q.Enqueue(new QueueItem(qi.Cell - 42, qi.Cell, 0));
+            if (!nextPlaceUnsafe("DOWN", qi.Cell))
+                q.Enqueue(new QueueItem(qi.Cell + 42, qi.Cell, 1));
+            if (!nextPlaceUnsafe("LEFT", qi.Cell))
+                q.Enqueue(new QueueItem(qi.Cell - 2, qi.Cell, 2));
+            if (!nextPlaceUnsafe("RIGHT", qi.Cell))
+                q.Enqueue(new QueueItem(qi.Cell + 2, qi.Cell, 3));
+        }
+        var r = sol;
+        var path = new List<int>();
+        while (true)
+        {
+            var nr = visited[r];
+            if (nr.Parent == -1)
+                break;
+            path.Add(nr.Direction);
+            r = nr.Parent;
+        }
+        for (int i = path.Count - 1; i >= 0; i--)
+        {
+            buttons[path[i]].OnInteract();
+            yield return new WaitForSeconds(0.1f);
+        }
+        while (isanimating)
+            yield return true;
     }
 }
