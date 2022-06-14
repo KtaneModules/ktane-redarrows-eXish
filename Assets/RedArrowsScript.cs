@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using KModkit;
-using System;
 using System.Text.RegularExpressions;
 
 public class RedArrowsScript : MonoBehaviour
@@ -44,7 +43,8 @@ public class RedArrowsScript : MonoBehaviour
 
     private bool firstMove;
     private bool colorblindActive = false;
-    private bool isanimating = false;
+    private bool isanimating = true;
+    private bool activated = false;
 
     static int moduleIdCounter = 1;
     int moduleId;
@@ -55,18 +55,28 @@ public class RedArrowsScript : MonoBehaviour
         firstMove = false;
         moduleId = moduleIdCounter++;
         moduleSolved = false;
+        colorblindActive = Colorblind.ColorblindModeActive;
         foreach (KMSelectable obj in buttons)
         {
             KMSelectable pressed = obj;
             pressed.OnInteract += delegate () { PressButton(pressed); return false; };
         }
+        GetComponent<KMBombModule>().OnActivate += OnActivate;
     }
 
     void Start()
     {
         numDisplay.GetComponent<TextMesh>().text = " ";
+        if (activated)
+            StartCoroutine(generateNewNum());
+    }
+
+    void OnActivate()
+    {
         StartCoroutine(generateNewNum());
-        StartCoroutine(colorblindDelay());
+        if (colorblindActive)
+            colorblindText.SetActive(true);
+        activated = true;
     }
 
     void PressButton(KMSelectable pressed)
@@ -74,7 +84,7 @@ public class RedArrowsScript : MonoBehaviour
         if (moduleSolved != true && isanimating != true)
         {
             pressed.AddInteractionPunch(0.25f);
-            audio.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.ButtonPress, transform);
+            audio.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.ButtonPress, pressed.transform);
             if (pressed == buttons[0] && nextPlaceUnsafe("UP", current))
             {
                 GetComponent<KMBombModule>().HandleStrike();
@@ -143,29 +153,16 @@ public class RedArrowsScript : MonoBehaviour
         int rando = 0;
         while (rando == check)
         {
-            rando = UnityEngine.Random.RandomRange(0, 10);
+            rando = Random.Range(0, 10);
             int.TryParse(bomb.GetSerialNumber().Substring(5, 1), out check);
         }
         yield return new WaitForSeconds(0.5f);
         numDisplay.GetComponent<TextMesh>().text = "" + rando;
-        StopCoroutine("generateNewNum");
         start = rando;
         current = maze.IndexOf("" + start);
         int.TryParse(bomb.GetSerialNumber().Substring(5, 1), out finish);
         Debug.LogFormat("[Red Arrows #{0}] The start has been set to point '{1}'! The finish has been set to point '{2}'!", moduleId, start, finish);
         isanimating = false;
-        StopCoroutine("generateNewNum");
-    }
-
-    private IEnumerator colorblindDelay()
-    {
-        yield return new WaitForSeconds(0.5f);
-        colorblindActive = Colorblind.ColorblindModeActive;
-        if (colorblindActive)
-        {
-            Debug.LogFormat("[Red Arrows #{0}] Colorblind mode active!", moduleId);
-            colorblindText.SetActive(true);
-        }
     }
 
     private bool nextPlaceUnsafe(string check, int pos)
@@ -226,7 +223,7 @@ public class RedArrowsScript : MonoBehaviour
         isanimating = true;
         for (int i = 0; i < 100; i++)
         {
-            int rand1 = UnityEngine.Random.RandomRange(0, 10);
+            int rand1 = Random.Range(0, 10);
             if (i < 50)
             {
                 numDisplay.GetComponent<TextMesh>().text = rand1 + "";
@@ -240,12 +237,10 @@ public class RedArrowsScript : MonoBehaviour
         numDisplay.GetComponent<TextMesh>().text = "GG";
         isanimating = false;
         GetComponent<KMBombModule>().HandlePass();
-        StopCoroutine("victory");
     }
 
     //twitch plays
     #pragma warning disable 414
-    //private readonly string TwitchHelpMessage = @"!{0} up [Presses the up arrow button] | !{0} right [Presses the right arrow button] | !{0} down [Presses the down arrow button once] | !{0} left [Presses the left arrow button once] | !{0} left right down up [Chain button presses] | !{0} reset [Resets the module back to the start] | Movement words can be substituted as one letter (Ex. right as r)";
     private readonly string TwitchHelpMessage = @"!{0} u/d/l/r [Presses the specified arrow button] | !{0} reset [Resets the module back to the start] | Presses can be chained, for example '!{0} uuddlrl'";
     #pragma warning restore 414
 
@@ -303,41 +298,46 @@ public class RedArrowsScript : MonoBehaviour
 
     private IEnumerator TwitchHandleForcedSolve()
     {
-        var visited = new Dictionary<int, QueueItem>();
-        var q = new Queue<QueueItem>();
-        var sol = maze.IndexOf(finish.ToString()[0]);
-        q.Enqueue(new QueueItem(current, -1, 0));
-        while (q.Count > 0)
+        if (!moduleSolved)
         {
-            var qi = q.Dequeue();
-            if (visited.ContainsKey(qi.Cell))
-                continue;
-            visited[qi.Cell] = qi;
-            if (qi.Cell == sol)
-                break;
-            if (!nextPlaceUnsafe("UP", qi.Cell))
-                q.Enqueue(new QueueItem(qi.Cell - 42, qi.Cell, 0));
-            if (!nextPlaceUnsafe("DOWN", qi.Cell))
-                q.Enqueue(new QueueItem(qi.Cell + 42, qi.Cell, 1));
-            if (!nextPlaceUnsafe("LEFT", qi.Cell))
-                q.Enqueue(new QueueItem(qi.Cell - 2, qi.Cell, 2));
-            if (!nextPlaceUnsafe("RIGHT", qi.Cell))
-                q.Enqueue(new QueueItem(qi.Cell + 2, qi.Cell, 3));
-        }
-        var r = sol;
-        var path = new List<int>();
-        while (true)
-        {
-            var nr = visited[r];
-            if (nr.Parent == -1)
-                break;
-            path.Add(nr.Direction);
-            r = nr.Parent;
-        }
-        for (int i = path.Count - 1; i >= 0; i--)
-        {
-            buttons[path[i]].OnInteract();
-            yield return new WaitForSeconds(0.1f);
+            while (isanimating)
+                yield return true;
+            var visited = new Dictionary<int, QueueItem>();
+            var q = new Queue<QueueItem>();
+            var sol = maze.IndexOf(finish.ToString()[0]);
+            q.Enqueue(new QueueItem(current, -1, 0));
+            while (q.Count > 0)
+            {
+                var qi = q.Dequeue();
+                if (visited.ContainsKey(qi.Cell))
+                    continue;
+                visited[qi.Cell] = qi;
+                if (qi.Cell == sol)
+                    break;
+                if (!nextPlaceUnsafe("UP", qi.Cell))
+                    q.Enqueue(new QueueItem(qi.Cell - 42, qi.Cell, 0));
+                if (!nextPlaceUnsafe("DOWN", qi.Cell))
+                    q.Enqueue(new QueueItem(qi.Cell + 42, qi.Cell, 1));
+                if (!nextPlaceUnsafe("LEFT", qi.Cell))
+                    q.Enqueue(new QueueItem(qi.Cell - 2, qi.Cell, 2));
+                if (!nextPlaceUnsafe("RIGHT", qi.Cell))
+                    q.Enqueue(new QueueItem(qi.Cell + 2, qi.Cell, 3));
+            }
+            var r = sol;
+            var path = new List<int>();
+            while (true)
+            {
+                var nr = visited[r];
+                if (nr.Parent == -1)
+                    break;
+                path.Add(nr.Direction);
+                r = nr.Parent;
+            }
+            for (int i = path.Count - 1; i >= 0; i--)
+            {
+                buttons[path[i]].OnInteract();
+                yield return new WaitForSeconds(0.1f);
+            }
         }
         while (isanimating)
             yield return true;
