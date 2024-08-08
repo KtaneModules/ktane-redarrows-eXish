@@ -4,39 +4,21 @@ using System.Linq;
 using UnityEngine;
 using KModkit;
 using System.Text.RegularExpressions;
+using System.Runtime.InteropServices;
 
 public class RedArrowsScript : MonoBehaviour
 {
 
-    public KMAudio audio;
+    public KMAudio Audio;
     public KMBombInfo bomb;
     public KMColorblindMode Colorblind;
+    public KMRuleSeedable RuleSeedable;
 
     public KMSelectable[] buttons;
     public GameObject numDisplay;
     public GameObject colorblindText;
 
-    private string maze = "---------------------" +
-                          "|o+o+o+o|o|o+o+o+o+0|" +
-                          "|+---+-+-+-+---+----|" +
-                          "|o|o+o|o+o|o+o|o+o+o|" +
-                          "|+-+-----+-+-+-----+|" +
-                          "|1|o|o+4|o+o|o|o+o|6|" +
-                          "|--+-+---+-----+-+--|" +
-                          "|o+o|o+o+o+o+o+o|o+o|" +
-                          "|+---------+-------+|" +
-                          "|o+9|o+o+o|o|o+o+3|o|" +
-                          "|----+---+-+-+-----+|" +
-                          "|o+o|o|5|o+o|o+o+o+o|" +
-                          "|+-+-+-+-----------+|" +
-                          "|o|o+o|o+o+o+o|7+o+o|" +
-                          "|+-----------+-----+|" +
-                          "|o|o+o+o|o+8|o+o+o|o|" +
-                          "|+-+---+-+-------+-+|" +
-                          "|o|o|o+o|o+o+o+o|o+o|" +
-                          "|+-+-+---------+---+|" +
-                          "|o+o|o+o+o+2|o+o+o+o|" +
-                          "---------------------";
+    private string maze = "";
     private int start;
     private int finish;
     private int current;
@@ -45,6 +27,9 @@ public class RedArrowsScript : MonoBehaviour
     private bool colorblindActive = false;
     private bool isanimating = true;
     private bool activated = false;
+
+    private MazeGenerator _mazeGenerator;
+    private const int _size = 10;
 
     static int moduleIdCounter = 1;
     int moduleId;
@@ -66,9 +51,55 @@ public class RedArrowsScript : MonoBehaviour
 
     void Start()
     {
+        // rule seed
+        var rnd = RuleSeedable.GetRNG();
+        _mazeGenerator = new MazeGenerator(_size, rnd);
+        if (rnd.Seed == 1)
+            maze = "██████████████████████       █ █        0██ ███ █ █ █ ███ ██████ █   █   █   █     ██ █ █████ █ █ █████ ██1█ █  4█   █ █   █6████ █ ███ █████ █ ████   █           █   ██ █████████ ███████ ██  9█     █ █    3█ ██████ ███ █ █ █████ ██   █ █5█   █       ██ █ █ █ ███████████ ██ █   █       █7    ██ ███████████ █████ ██ █     █  8█     █ ██ █ ███ █ ███████ █ ██ █ █   █       █   ██ █ █ █████████ ███ ██   █      2█       ██████████████████████";
+        else {
+            Debug.LogFormat("[Red Arrows #{0}] Using rule seed {1}.", moduleId, rnd.Seed);
+            maze = _mazeGenerator.GenerateMaze();
+            var dec = CheckValidity(maze);
+            while (dec.Count < 10)
+            {
+                maze = _mazeGenerator.GenerateMaze();
+                dec = CheckValidity(maze);
+            }
+            rnd.ShuffleFisherYates(dec);
+            for (var i = 0; i < 10; i++)
+            {
+                var pos = (dec[i] / _size * (_size * 2 + 1) * 2) + (dec[i] % _size * 2) + _size * 2 + 2;
+                maze = maze.Substring(0, pos) + i + maze.Substring(pos + 1);
+            }
+        }
+
         numDisplay.GetComponent<TextMesh>().text = " ";
         if (activated)
             StartCoroutine(generateNewNum());
+    }
+
+    List<int> CheckValidity(string maze)
+    {
+        var deadEnds = new List<int>();
+        for (var i = 0; i < _size; i++)
+        {
+            for (var j = 0; j < _size; j++)
+            {
+                var wallCount = 0;
+                var curPos = (i * (_size * 2 + 1) * 2) + (j * 2) + (_size * 2 + 2);
+                if (maze[curPos - 1] == '█')
+                    wallCount++;
+                if (maze[curPos - (_size * 2 + 1)] == '█')
+                    wallCount++;
+                if (maze[curPos + 1] == '█')
+                    wallCount++;
+                if (maze[curPos + (_size * 2 + 1)] == '█')
+                    wallCount++;
+                if (wallCount == 3)
+                    deadEnds.Add(i * 10 + j);
+            }
+        }
+        return deadEnds;
     }
 
     void OnActivate()
@@ -84,7 +115,7 @@ public class RedArrowsScript : MonoBehaviour
         if (moduleSolved != true && isanimating != true)
         {
             pressed.AddInteractionPunch(0.25f);
-            audio.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.ButtonPress, pressed.transform);
+            Audio.PlayGameSoundAtTransform(KMSoundOverride.SoundEffect.ButtonPress, pressed.transform);
             if (pressed == buttons[0] && nextPlaceUnsafe("UP", current))
             {
                 GetComponent<KMBombModule>().HandleStrike();
@@ -170,7 +201,7 @@ public class RedArrowsScript : MonoBehaviour
         if (check.Equals("UP"))
         {
             char imp = maze[pos - 21];
-            if (imp.Equals('-') || imp.Equals('|'))
+            if (imp.Equals('█'))
             {
                 return true;
             }
@@ -182,7 +213,7 @@ public class RedArrowsScript : MonoBehaviour
         else if (check.Equals("DOWN"))
         {
             char imp = maze[pos + 21];
-            if (imp.Equals('-') || imp.Equals('|'))
+            if (imp.Equals('█'))
             {
                 return true;
             }
@@ -194,7 +225,7 @@ public class RedArrowsScript : MonoBehaviour
         else if (check.Equals("LEFT"))
         {
             char imp = maze[pos - 1];
-            if (imp.Equals('-') || imp.Equals('|'))
+            if (imp.Equals('█'))
             {
                 return true;
             }
@@ -206,7 +237,7 @@ public class RedArrowsScript : MonoBehaviour
         else if (check.Equals("RIGHT"))
         {
             char imp = maze[pos + 1];
-            if (imp.Equals('-') || imp.Equals('|'))
+            if (imp.Equals('█'))
             {
                 return true;
             }
@@ -240,9 +271,9 @@ public class RedArrowsScript : MonoBehaviour
     }
 
     //twitch plays
-    #pragma warning disable 414
+#pragma warning disable 414
     private readonly string TwitchHelpMessage = @"!{0} u/d/l/r [Presses the specified arrow button] | !{0} reset [Resets the module back to the start] | Presses can be chained, for example '!{0} uuddlrl'";
-    #pragma warning restore 414
+#pragma warning restore 414
 
     IEnumerator ProcessTwitchCommand(string command)
     {
